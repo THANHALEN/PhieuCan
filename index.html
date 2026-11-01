@@ -354,16 +354,7 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 
     <div class="col">
       <section class="card">
-        <h2 class="sec">3 · Ảnh chụp</h2>
-        <div class="range-head"><label class="lbl" for="s_width">Kích thước tối đa</label><b id="v_width">1280 px</b></div>
-        <input type="range" id="s_width" min="480" max="2048" step="64">
-        <div class="range-head"><label class="lbl" for="s_quality">Chất lượng JPEG</label><b id="v_quality">70%</b></div>
-        <input type="range" id="s_quality" min="30" max="95" step="5">
-        <p class="hint">Ảnh nhỏ giúp upload nhanh trên 4G; chất lượng thấp làm ảnh mờ hơn.</p>
-      </section>
-
-      <section class="card">
-        <h2 class="sec">4 · Đồng bộ</h2>
+        <h2 class="sec">3 · Đồng bộ</h2>
         <label class="row">
           <span class="txt">Tự đồng bộ khi có mạng</span>
           <span class="switch">
@@ -374,13 +365,20 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
       </section>
 
       <section class="card">
-        <h2 class="sec">5 · Thao tác</h2>
+        <h2 class="sec">4 · Thao tác</h2>
         <div class="btn-row">
           <button class="btn" id="btn-test" type="button">Kiểm tra kết nối</button>
           <button class="btn" id="btn-defaults" type="button">Mặc định</button>
         </div>
+        <button class="btn full" id="btn-copy-link" type="button" style="margin-top:10px">Sao chép link cài nhanh</button>
+        <p class="hint">Gửi link này cho nhân viên: mở link là tự nhập URL + Anon key, không cần copy khóa.</p>
         <p id="test-result"></p>
         <button class="btn primary full" id="btn-save-settings" type="button">Lưu cấu hình</button>
+      </section>
+
+      <section class="card">
+        <h2 class="sec">5 · Phiên bản <span id="app-ver"></span></h2>
+        <div id="changelog"></div>
       </section>
     </div>
   </main>
@@ -420,6 +418,16 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
    CẤU HÌNH — người dùng chỉnh trong màn hình Cài đặt,
    được lưu trong trình duyệt (localStorage)
    ========================================================= */
+const APP_VERSION = "1.1.0"; // đổi cùng CACHE_NAME trong sw.js và CHANGELOG.md
+const CHANGELOG = [
+  { v: "1.1.0", d: "2026-11-02", items: [
+    "Thêm số phiên bản và nhật ký thay đổi",
+    "Bỏ mục cài đặt Ảnh chụp (dùng giá trị mặc định 1280 px / 70%)",
+    "Link cài nhanh: cấp URL + Anon key cho thiết bị mới không cần copy tay",
+    "Chuẩn hóa PWA: đường dẫn tương đối ./ cho GitHub Pages"
+  ] },
+  { v: "1.0.0", d: "2026-10-01", items: ["Phiên bản đầu tiên"] }
+];
 const SETTINGS_KEY = "phieu_can_settings";
 const DEFAULTS = {
   station: "Trạm cân thu mua",
@@ -805,9 +813,34 @@ function updateStationLabel() {
   $("station-label").textContent = S.station;
   document.title = `${S.station} — Phiếu cân`;
 }
-function refreshRangeLabels() {
-  $("v_width").textContent = `${$("s_width").value} px`;
-  $("v_quality").textContent = `${$("s_quality").value}%`;
+function renderChangelog() {
+  $("app-ver").textContent = "v" + APP_VERSION;
+  $("changelog").innerHTML = CHANGELOG.map((c, i) =>
+    `<details${i === 0 ? " open" : ""}><summary><b>v${esc(c.v)}</b> · ${esc(c.d)}</summary><ul>${c.items.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></details>`
+  ).join("");
+}
+/* Link cài nhanh: #cfg=<base64 JSON>. Mở link → lưu cấu hình → xóa hash khỏi thanh địa chỉ */
+const b64enc = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+const b64dec = (s) => JSON.parse(decodeURIComponent(escape(atob(s))));
+function applySetupLink() {
+  const m = /^#cfg=(.+)$/.exec(location.hash);
+  if (!m) return;
+  try {
+    const c = b64dec(decodeURIComponent(m[1]));
+    const o = { ...loadSettings(), station: c.station || S.station, url: String(c.url || "").replace(/\/+$/, ""), key: String(c.key || ""), bucket: c.bucket || S.bucket, table: c.table || S.table };
+    if (validateSettings(o) || !o.url || !o.key) throw new Error("bad");
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(o));
+    S = o;
+    toast("Đã cài đặt kết nối từ link");
+  } catch (e) { toast("Link cài nhanh không hợp lệ"); }
+  history.replaceState(null, "", location.pathname + location.search);
+}
+async function copySetupLink() {
+  const o = readSettingsForm();
+  if (!o.url || !o.key) { toast("Nhập Project URL và Anon key trước"); return; }
+  const link = location.origin + location.pathname + "#cfg=" + encodeURIComponent(b64enc({ station: o.station, url: o.url, key: o.key, bucket: o.bucket, table: o.table }));
+  try { await navigator.clipboard.writeText(link); toast("Đã sao chép link cài nhanh"); }
+  catch (e) { prompt("Sao chép link:", link); }
 }
 function populateSettingsForm() {
   $("s_station").value = S.station;
@@ -815,10 +848,7 @@ function populateSettingsForm() {
   $("s_key").value = S.key;
   $("s_bucket").value = S.bucket;
   $("s_table").value = S.table;
-  $("s_width").value = S.maxWidth;
-  $("s_quality").value = S.quality;
   $("s_autosync").checked = S.autoSync;
-  refreshRangeLabels();
   setTestResult("", "");
 }
 function readSettingsForm() {
@@ -828,8 +858,6 @@ function readSettingsForm() {
     key: $("s_key").value.trim(),
     bucket: $("s_bucket").value.trim() || DEFAULTS.bucket,
     table: $("s_table").value.trim() || DEFAULTS.table,
-    maxWidth: clamp(parseInt($("s_width").value, 10) || DEFAULTS.maxWidth, 480, 2048),
-    quality: clamp(parseInt($("s_quality").value, 10) || DEFAULTS.quality, 30, 95),
     autoSync: $("s_autosync").checked
   };
 }
@@ -881,10 +909,7 @@ async function restoreDefaults() {
   $("s_key").value = d.key;
   $("s_bucket").value = d.bucket;
   $("s_table").value = d.table;
-  $("s_width").value = d.maxWidth;
-  $("s_quality").value = d.quality;
   $("s_autosync").checked = d.autoSync;
-  refreshRangeLabels();
 }
 
 /* ---------- Trạng thái mạng ---------- */
@@ -933,8 +958,7 @@ $("btn-eye").addEventListener("click", () => {
   input.type = show ? "text" : "password";
   $("btn-eye").textContent = show ? "Ẩn" : "Hiện";
 });
-$("s_width").addEventListener("input", refreshRangeLabels);
-$("s_quality").addEventListener("input", refreshRangeLabels);
+$("btn-copy-link").addEventListener("click", copySetupLink);
 
 window.addEventListener("online", () => { updateNet(); syncPending(); });
 window.addEventListener("offline", updateNet);
@@ -948,6 +972,8 @@ syncPending().catch((e) => console.error(e));
 /* Mở thẳng màn hình cài đặt khi link kết thúc bằng #cai-dat (dùng cho xem thử) */
 function routeFromHash() { showView(location.hash === "#cai-dat" ? "settings" : "scale"); }
 window.addEventListener("hashchange", routeFromHash);
+applySetupLink();
+renderChangelog();
 if (location.hash === "#cai-dat") routeFromHash();
 if (!isConfigured()) toast("Chưa có cấu hình Supabase — mở ⚙ Cài đặt để nhập", 4000);
 </script>

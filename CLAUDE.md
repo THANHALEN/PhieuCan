@@ -13,4 +13,5 @@ Vanilla Frontend thuần (HTML5, CSS3, JavaScript ES6+). Không sử dụng fram
 ## Workflow & Rules
 - Chỉnh sửa có mục tiêu (Atomic changes): chỉ replace/patch đúng các dòng cần sửa, không in lại toàn bộ file nếu không cần thiết.
 - Giữ nguyên cấu trúc dữ liệu cục bộ và định dạng in ấn hiện có.
+- Mỗi thay đổi phải tăng phiên bản (SemVer): cập nhật đồng bộ `APP_VERSION` + `CHANGELOG` trong `index.html`, `CACHE_NAME` trong `sw.js` và `CHANGELOG.md`.
 - Mọi thay đổi mã nguồn phải được kiểm tra cú pháp trước khi bàn giao.

@@ -1,6 +1,6 @@
 /* Service worker: lưu app shell để mở được khi mất mạng.
    Khi thay đổi index.html hoặc icon, đổi số phiên bản CACHE_NAME để trình duyệt cập nhật. */
-const CACHE_NAME = "phieu-can-v2";
+const CACHE_NAME = "phieu-can-v1.1.0";
 const SHELL = [
   "./",
   "./index.html",
