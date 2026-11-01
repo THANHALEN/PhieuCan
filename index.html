@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#e9ecf1">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon/icon-192.png">
+<link rel="apple-touch-icon" href="./icon/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Phiếu cân">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Phiếu Cân Điện Tử</title>
+<style>
+:root{
+  --bg:#e9ecf1;
+  --fg:#1d2026;
+  --muted:#525963;
+  --red:#e5383b;
+  --sh-dark:#c2c7cf;
+  --sh-light:#ffffff;
+  --up:8px 8px 16px var(--sh-dark),-8px -8px 16px var(--sh-light);
+  --up-sm:4px 4px 9px var(--sh-dark),-4px -4px 9px var(--sh-light);
+  --in:inset 4px 4px 8px var(--sh-dark),inset -4px -4px 8px var(--sh-light);
+  --red-glow:0 6px 14px rgba(229,56,59,.35);
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent;min-height:100%}
+.hidden{display:none!important}
+button{font:inherit;color:var(--fg);cursor:pointer;touch-action:manipulation}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+
+/* ---------- Header ---------- */
+.hdr{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;align-items:center;justify-content:space-between;gap:10px;padding-block:12px;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));box-shadow:0 6px 14px var(--sh-dark)}
+.hdr h1{font-size:18px;margin:0;letter-spacing:.5px;font-weight:800;text-align:center;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr .spacer{width:52px;flex:0 0 52px}
+.icon-btn{width:52px;height:52px;border:0;border-radius:50%;background:var(--bg);box-shadow:var(--up-sm);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.icon-btn:active{box-shadow:var(--in)}
+.icon-btn svg{width:24px;height:24px;fill:none;stroke:var(--fg);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.netstat{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;background:var(--bg);box-shadow:var(--in);white-space:nowrap;flex:0 0 auto}
+.netstat.on{color:#1f8a4c}
+.netstat.off{color:var(--red)}
+.hdr-right{display:flex;align-items:center;gap:10px;min-width:52px;justify-content:flex-end}
+
+/* ---------- Layout màn hình cân ---------- */
+.layout{display:flex;flex-direction:column;max-width:1200px;margin:0 auto;padding-block:0 250px;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
+
+/* ---------- Pending ---------- */
+.pending{padding:12px 0 4px}
+.pending-head{font-weight:800;font-size:14px;margin:0 4px 8px;display:flex;align-items:center;gap:8px;color:var(--muted)}
+.badge{background:var(--red);color:#fff;border-radius:999px;padding:2px 10px;font-size:13px;box-shadow:var(--red-glow)}
+.pending-list{display:flex;gap:12px;overflow-x:auto;padding:6px 4px 14px;-webkit-overflow-scrolling:touch}
+.chip{flex:0 0 auto;min-width:170px;min-height:64px;text-align:left;background:var(--bg);border:0;border-radius:18px;box-shadow:var(--up-sm);padding:10px 36px 10px 14px;position:relative}
+.chip:active{box-shadow:var(--in)}
+.chip b{display:block;font-size:18px}
+.chip span{display:block;font-size:14px;color:var(--muted)}
+.chip em{font-style:normal;font-size:12px;font-weight:800;color:var(--red)}
+.chip.sync em{color:#b45309}
+.chip.sync::before{content:"";position:absolute;left:8px;top:8px;width:8px;height:8px;border-radius:50%;background:#f59e0b}
+.chip .x{position:absolute;right:8px;top:8px;width:26px;height:26px;border-radius:50%;box-shadow:var(--up-sm);display:flex;align-items:center;justify-content:center;font-style:normal;font-size:16px;font-weight:800;color:var(--red)}
+.empty{font-size:14px;color:var(--muted);padding:6px 4px}
+
+/* ---------- Form ---------- */
+.form-grid{display:flex;flex-direction:column;gap:16px}
+.card{background:var(--bg);border-radius:24px;box-shadow:var(--up);padding:16px}
+.lbl{display:block;font-weight:700;font-size:14px;color:var(--muted);margin:10px 4px 8px}
+.lbl:first-child{margin-top:0}
+.nm-input{width:100%;border:0;outline:none;background:var(--bg);box-shadow:var(--in);border-radius:16px;padding:14px 16px;font:inherit;font-size:22px;color:var(--fg)}
+.nm-input:focus{box-shadow:var(--in),0 0 0 2px var(--red)}
+textarea.nm-input{font-size:18px;min-height:72px;resize:vertical}
+.nm-input.num{font-size:32px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums;height:72px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.lcd{margin-top:14px;border-radius:20px;background:var(--bg);box-shadow:var(--in);padding:14px;text-align:center}
+.lcd span{display:block;font-size:14px;color:var(--muted);font-weight:700}
+.lcd strong{display:block;font-size:46px;color:var(--red);font-variant-numeric:tabular-nums;margin-top:4px}
+.lcd strong.bad{color:#b91c1c}
+#status{font-size:14px;font-weight:700;margin-top:10px;text-align:center;color:var(--muted)}
+.cam-btn{display:flex;align-items:center;justify-content:center;gap:10px;height:64px;border-radius:20px;background:var(--bg);box-shadow:var(--up-sm);font-size:17px;font-weight:800;cursor:pointer}
+.cam-btn:active{box-shadow:var(--in)}
+.cam-btn svg{width:26px;height:26px;fill:none;stroke:var(--red);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+input[type=file]{display:none}
+.preview{margin-top:14px}
+.preview img{width:100%;max-height:260px;object-fit:contain;border-radius:18px;display:block;box-shadow:var(--in);padding:8px;background:var(--bg)}
+.btn{height:52px;padding:0 18px;border:0;border-radius:16px;background:var(--bg);box-shadow:var(--up-sm);font-weight:800;font-size:16px}
+.btn:active{box-shadow:var(--in)}
+.btn.primary{background:var(--red);color:#fff;box-shadow:var(--red-glow)}
+.btn.danger{color:var(--red)}
+.btn.full{width:100%}
+.btn-row{display:flex;gap:12px;margin-bottom:12px}
+.btn-row .btn{flex:1}
+
+/* ---------- Action bar ---------- */
+.actions{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--bg);border-radius:28px 28px 0 0;box-shadow:0 -8px 18px var(--sh-dark);display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding-block:14px calc(14px + env(safe-area-inset-bottom,0px));padding-inline:max(14px,env(safe-area-inset-left,0px)) max(14px,env(safe-area-inset-right,0px))}
+.actions button{height:60px;min-width:48px;border:0;border-radius:20px;background:var(--bg);box-shadow:var(--up-sm);display:flex;align-items:center;justify-content:center}
+.actions button:active{box-shadow:var(--in)}
+.actions button svg{width:28px;height:28px;fill:none;stroke:var(--fg);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#btn-save{background:var(--red);box-shadow:var(--red-glow)}
+#btn-save svg{stroke:#fff}
+#btn-reset svg{stroke:var(--red)}
+body.busy .actions button{opacity:.5;pointer-events:none}
+
+/* ---------- Settings ---------- */
+#view-settings{min-height:100%}
+.settings{display:grid;grid-template-columns:1fr;gap:16px;max-width:1200px;margin:0 auto;padding-block:16px 40px;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.sec{font-size:13px;font-weight:800;letter-spacing:.8px;color:var(--red);text-transform:uppercase;margin:0 0 12px 4px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:4px;cursor:pointer}
+.row span.txt{font-weight:700;font-size:16px}
+.switch{position:relative;width:64px;height:34px;border-radius:999px;background:var(--bg);box-shadow:var(--in);flex:0 0 auto}
+.switch input{position:absolute;opacity:0;width:0;height:0}
+.switch .knob{position:absolute;top:4px;left:4px;width:26px;height:26px;border-radius:50%;background:var(--bg);box-shadow:var(--up-sm);transition:left .2s,background .2s}
+.switch input:checked ~ .knob{left:34px;background:var(--red)}
+.range-head{display:flex;justify-content:space-between;align-items:baseline;margin:12px 4px 0}
+.range-head .lbl{margin:0}
+.range-head b{color:var(--red);font-size:18px;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:14px;border-radius:999px;background:var(--bg);box-shadow:var(--in);outline:none;margin:14px 0 6px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;border-radius:50%;background:var(--red);border:4px solid var(--bg);box-shadow:3px 3px 7px var(--sh-dark),-3px -3px 7px var(--sh-light);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--red);border:4px solid var(--bg);box-shadow:3px 3px 7px var(--sh-dark),-3px -3px 7px var(--sh-light);cursor:pointer}
+.key-row{display:flex;gap:10px;align-items:stretch}
+.key-row .nm-input{flex:1;min-width:0}
+.key-row .btn{height:auto;padding:0 14px;flex:0 0 auto;font-size:14px}
+#test-result{font-size:14px;font-weight:700;margin:4px 4px 14px;min-height:20px;line-height:1.4;color:var(--muted)}
+#test-result.ok{color:#1f8a4c}
+#test-result.err{color:var(--red)}
+.hint{font-size:13px;color:var(--muted);margin:8px 4px 0;line-height:1.4}
+
+/* ---------- Modal & toast ---------- */
+.modal{position:fixed;inset:0;background:rgba(30,34,40,.35);display:flex;align-items:center;justify-content:center;z-index:20;padding:20px}
+.modal .box{background:var(--bg);border-radius:26px;box-shadow:var(--up);padding:22px;max-width:400px;width:100%}
+.modal p{font-size:19px;font-weight:800;margin:0 0 18px;line-height:1.4}
+.modal .btns{display:flex;gap:12px}
+.modal button{flex:1;height:56px;border:0;border-radius:18px;background:var(--bg);box-shadow:var(--up-sm);font-size:17px;font-weight:800}
+.modal button:active{box-shadow:var(--in)}
+#modal-ok{background:var(--red);color:#fff;box-shadow:var(--red-glow)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(84px + env(safe-area-inset-top,0px));background:var(--bg);color:var(--fg);padding:14px 20px;border-radius:18px;box-shadow:var(--up);font-size:16px;font-weight:700;z-index:30;max-width:92%;text-align:center}
+
+/* ---------- Desktop (màn hình rộng) ---------- */
+@media (min-width:960px){
+  .nm-input{font-size:18px;padding:12px 14px}
+  .nm-input.num{font-size:28px;height:60px}
+  .lbl{font-size:13px;margin:8px 4px 6px}
+  .lcd strong{font-size:40px}
+  .hdr{padding:12px 28px}
+
+  /* Màn hình cân: cột trái danh sách chờ, cột phải form */
+  .layout{display:grid;grid-template-columns:280px 1fr;gap:20px;padding:20px 28px 130px;align-items:start}
+  .pending{padding:0;position:sticky;top:90px}
+  .pending-list{flex-direction:column;overflow-y:auto;max-height:calc(100vh - 170px);padding:6px 6px 6px 4px}
+  .chip{min-width:0;width:100%}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+  .form-grid .card:first-child{grid-row:span 2}
+  .preview img{max-height:220px}
+
+  /* Thanh hành động: căn giữa, bo tròn toàn bộ */
+  .actions{left:50%;right:auto;transform:translateX(-50%);width:min(560px,calc(100% - 40px));bottom:18px;border-radius:28px;box-shadow:var(--up)}
+
+  /* Cài đặt: 2 cột, vừa một màn hình */
+  .settings{grid-template-columns:1fr 1fr;gap:20px;padding:20px 28px 40px;align-items:start}
+  .col{gap:20px}
+}
+
+/* Điện thoại: mọi màn hình vừa đúng một khung hình, không cuộn */
+@media (max-width:959px){
+  html,body{height:100%;overflow:hidden}
+  #view-scale,#view-settings{height:100%;display:flex;flex-direction:column;overflow:hidden}
+  .hdr{padding-block:6px;flex:0 0 auto}
+  .hdr h1{font-size:16px}
+  .icon-btn{width:44px;height:44px}
+  .icon-btn svg{width:22px;height:22px}
+  .netstat{font-size:11px;padding:4px 8px}
+
+  .layout{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding-block:0 calc(80px + env(safe-area-inset-bottom,0px))}
+  .pending{padding:4px 0 0;flex:0 0 auto}
+  .pending-head{font-size:12px;margin:0 2px 4px}
+  .pending-list{padding:2px 0 4px;gap:8px}
+  .chip{min-width:124px;min-height:0;padding:6px 24px 6px 10px;border-radius:14px}
+  .chip b{font-size:14px}
+  .chip span{font-size:12px}
+  .chip em{font-size:11px}
+  .chip .x{width:22px;height:22px;line-height:20px;font-size:14px;right:5px;top:5px}
+  .empty{font-size:12px;padding:2px}
+
+  .form-grid{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+  .card{padding:10px;border-radius:18px}
+  .lbl{font-size:12px;margin:5px 4px 3px}
+  .lbl:first-child{margin-top:0}
+  .nm-input{font-size:17px;padding:9px 12px;border-radius:12px}
+  .nm-input.num{font-size:22px;height:46px}
+  textarea.nm-input{height:40px;min-height:0;font-size:14px;resize:none}
+  .grid2{gap:8px}
+  .lcd{margin-top:8px;padding:6px;border-radius:14px}
+  .lcd span{font-size:10px}
+  .lcd strong{font-size:28px;margin-top:0}
+  #status{margin-top:4px;font-size:11px}
+  .cam-btn{height:42px;font-size:14px;border-radius:14px;gap:6px}
+  .cam-btn svg{width:20px;height:20px}
+  .preview{margin-top:6px}
+  .preview img{max-height:56px;padding:4px;border-radius:12px}
+  #rm-photo{height:36px;font-size:13px}
+  #preview-wrap .btn{height:36px;margin-top:6px}
+
+  .actions{padding-block:8px calc(8px + env(safe-area-inset-bottom,0px));gap:10px}
+  .actions button{height:50px;border-radius:16px}
+  .actions button svg{width:24px;height:24px}
+
+  .settings{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;overflow:hidden;padding-block:8px 8px}
+  .col{gap:8px}
+  .settings .card{padding:10px}
+  .sec{font-size:11px;margin:0 0 6px 2px}
+  .settings .lbl{font-size:12px;margin:5px 2px 3px}
+  .settings .nm-input{font-size:15px;height:40px;padding:8px 12px}
+  .settings .btn{height:40px;font-size:14px;padding:0 12px}
+  .key-row .btn{height:40px}
+  .grid2 .lbl{margin-top:0}
+  .settings .grid2{margin-top:8px !important}
+  .range-head{margin:6px 2px 0}
+  .range-head b{font-size:15px}
+  input[type=range]{margin:8px 0 2px;height:10px}
+  input[type=range]::-webkit-slider-thumb{width:24px;height:24px}
+  .settings .row span.txt{font-size:14px}
+  .hint{display:none}
+  .btn-row{margin-bottom:6px;gap:8px}
+  #test-result{margin:0 0 6px;min-height:0;font-size:12px}
+  .switch{width:56px;height:30px}
+  .switch .knob{width:22px;height:22px;top:4px}
+  .switch input:checked ~ .knob{left:30px}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ MÀN HÌNH CÂN ============ -->
+<div id="view-scale">
+  <header class="hdr">
+    <span class="spacer"></span>
+    <h1 id="station-label">Trạm cân</h1>
+    <div class="hdr-right">
+      <span class="netstat on netfield">● ONLINE</span>
+      <button class="icon-btn" id="btn-open-settings" type="button" aria-label="Cài đặt" title="Cài đặt">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="pending" aria-label="Xe đang chờ cân">
+      <div class="pending-head">Xe đang chờ cân lần 2 <span class="badge" id="pending-count">0</span></div>
+      <div class="pending-list" id="pending-list"></div>
+    </aside>
+
+    <main class="form-grid">
+      <section class="card">
+        <label class="lbl" for="bien_so">Biển số xe</label>
+        <input class="nm-input" id="bien_so" type="text" autocapitalize="characters" autocomplete="off" placeholder="VD: 51C-123.45">
+        <label class="lbl" for="ten_ncc">Nhà cung cấp / Khách hàng</label>
+        <input class="nm-input" id="ten_ncc" type="text" autocomplete="off">
+        <label class="lbl" for="hang_hoa">Loại hàng hóa</label>
+        <input class="nm-input" id="hang_hoa" type="text" autocomplete="off" placeholder="VD: Bã khoai lang">
+        <label class="lbl" for="ghi_chu">Ghi chú</label>
+        <textarea class="nm-input" id="ghi_chu" rows="2"></textarea>
+      </section>
+
+      <section class="card">
+        <div class="grid2">
+          <div>
+            <label class="lbl" for="tl_tong">TL Tổng (kg)</label>
+            <input class="nm-input num" id="tl_tong" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
+          </div>
+          <div>
+            <label class="lbl" for="tl_bi">TL Bì (kg)</label>
+            <input class="nm-input num" id="tl_bi" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
+          </div>
+        </div>
+        <div class="lcd">
+          <span>KHỐI LƯỢNG TỊNH (kg)</span>
+          <strong id="tl_tinh">—</strong>
+        </div>
+        <div id="status">Chưa có khối lượng</div>
+        <div style="margin-top:14px">
+          <label class="cam-btn" for="cam">
+            <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+            Chụp ảnh xe
+          </label>
+          <input id="cam" type="file" accept="image/*" capture="environment">
+        </div>
+        <div id="preview-wrap" class="preview hidden">
+          <img id="preview" alt="Ảnh xe">
+          <div style="margin-top:10px"><button class="btn danger full" id="rm-photo" type="button">Gỡ ảnh</button></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="actions">
+    <button id="btn-temp" type="button" aria-label="Lưu tạm" title="Lưu tạm">
+      <svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>
+    </button>
+    <button id="btn-save" type="button" aria-label="Chốt phiếu" title="Chốt phiếu">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>
+    </button>
+    <button id="btn-print" type="button" aria-label="In phiếu" title="In phiếu">
+      <svg viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>
+    </button>
+    <button id="btn-reset" type="button" aria-label="Làm mới phiếu" title="Làm mới">
+      <svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>
+    </button>
+  </footer>
+</div>
+
+<!-- ============ MÀN HÌNH CÀI ĐẶT (một trang) ============ -->
+<div id="view-settings" class="hidden">
+  <header class="hdr">
+    <button class="icon-btn" id="btn-back" type="button" aria-label="Quay lại" title="Quay lại">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button>
+    <h1>Cài đặt</h1>
+    <div class="hdr-right">
+      <span class="netstat on netfield">● ONLINE</span>
+    </div>
+  </header>
+
+  <main class="settings">
+    <div class="col">
+      <section class="card">
+        <h2 class="sec">1 · Trạm cân</h2>
+        <label class="lbl" for="s_station">Tên trạm (hiện trên đầu và phiếu in)</label>
+        <input class="nm-input" id="s_station" type="text" autocomplete="off">
+      </section>
+
+      <section class="card">
+        <h2 class="sec">2 · Kết nối Supabase</h2>
+        <label class="lbl" for="s_url">Project URL</label>
+        <input class="nm-input" id="s_url" type="url" inputmode="url" autocomplete="off" autocapitalize="none" placeholder="https://xxxx.supabase.co">
+        <label class="lbl" for="s_key">Anon key</label>
+        <div class="key-row">
+          <input class="nm-input" id="s_key" type="password" autocomplete="off" autocapitalize="none" spellcheck="false">
+          <button class="btn" id="btn-eye" type="button">Hiện</button>
+        </div>
+        <div class="grid2" style="margin-top:12px">
+          <div>
+            <label class="lbl" for="s_bucket">Bucket ảnh</label>
+            <input class="nm-input" id="s_bucket" type="text" autocomplete="off" autocapitalize="none">
+          </div>
+          <div>
+            <label class="lbl" for="s_table">Bảng phiếu</label>
+            <input class="nm-input" id="s_table" type="text" autocomplete="off" autocapitalize="none">
+          </div>
+        </div>
+        <p class="hint">Anon key lấy trong Project Settings → API của Supabase.</p>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="card">
+        <h2 class="sec">3 · Ảnh chụp</h2>
+        <div class="range-head"><label class="lbl" for="s_width">Kích thước tối đa</label><b id="v_width">1280 px</b></div>
+        <input type="range" id="s_width" min="480" max="2048" step="64">
+        <div class="range-head"><label class="lbl" for="s_quality">Chất lượng JPEG</label><b id="v_quality">70%</b></div>
+        <input type="range" id="s_quality" min="30" max="95" step="5">
+        <p class="hint">Ảnh nhỏ giúp upload nhanh trên 4G; chất lượng thấp làm ảnh mờ hơn.</p>
+      </section>
+
+      <section class="card">
+        <h2 class="sec">4 · Đồng bộ</h2>
+        <label class="row">
+          <span class="txt">Tự đồng bộ khi có mạng</span>
+          <span class="switch">
+            <input type="checkbox" id="s_autosync">
+            <i class="knob"></i>
+          </span>
+        </label>
+      </section>
+
+      <section class="card">
+        <h2 class="sec">5 · Thao tác</h2>
+        <div class="btn-row">
+          <button class="btn" id="btn-test" type="button">Kiểm tra kết nối</button>
+          <button class="btn" id="btn-defaults" type="button">Mặc định</button>
+        </div>
+        <p id="test-result"></p>
+        <button class="btn primary full" id="btn-save-settings" type="button">Lưu cấu hình</button>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="box">
+    <p id="modal-msg"></p>
+    <div class="btns">
+      <button id="modal-cancel" type="button">Hủy</button>
+      <button id="modal-ok" type="button">Xác nhận</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden" role="status"></div>
+<div id="print-area"></div>
+
+<style>
+/* In phiếu */
+#print-area{display:none}
+@media print{
+  body>*:not(#print-area){display:none!important}
+  #print-area{display:block!important;padding:10mm;font-family:"Times New Roman",serif;color:#000}
+  #print-area h2{text-align:center;margin:0 0 2mm}
+  #print-area .st{text-align:center;margin:0 0 4mm}
+  #print-area table{width:100%;border-collapse:collapse}
+  #print-area td{border:1px solid #000;padding:6px;font-size:14pt}
+  #print-area td:first-child{width:40%}
+  #print-area tr.net td{font-weight:700}
+  #print-area .sign{display:flex;justify-content:space-around;margin-top:20mm}
+}
+</style>
+
+<script>
+/* =========================================================
+   CẤU HÌNH — người dùng chỉnh trong màn hình Cài đặt,
+   được lưu trong trình duyệt (localStorage)
+   ========================================================= */
+const SETTINGS_KEY = "phieu_can_settings";
+const DEFAULTS = {
+  station: "Trạm cân thu mua",
+  url: "",
+  key: "",
+  bucket: "scale_images",
+  table: "phieu_can",
+  maxWidth: 1280,
+  quality: 70,      // phần trăm, 30–95
+  autoSync: true
+};
+const DB_NAME = "phieu_can_db";
+const STORE = "pending";
+
+/* ---------- Tiện ích ---------- */
+const $ = (id) => document.getElementById(id);
+const FIELDS = ["bien_so", "ten_ncc", "hang_hoa", "tl_tong", "tl_bi", "ghi_chu"];
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const parse = (v) => { const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? null : n; };
+const round2 = (n) => Math.round(n * 100) / 100;
+const fmt = (n) => (n == null ? "—" : Number(n).toLocaleString("vi-VN", { maximumFractionDigits: 2 }));
+const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+
+/* ---------- Cài đặt ---------- */
+function loadSettings() {
+  try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") }; }
+  catch (e) { return { ...DEFAULTS }; }
+}
+let S = loadSettings();
+const isConfigured = () => /^https:\/\/.+/.test(S.url) && !!S.key;
+const sbHeaders = (extra = {}) => ({ apikey: S.key, Authorization: `Bearer ${S.key}`, ...extra });
+
+/* ---------- Trạng thái ---------- */
+let currentId = null;
+let currentBlob = null;
+let previewUrl = null;
+let tTong = null;
+let tBi = null;
+let toastTimer = null;
+
+/* ---------- Toast ---------- */
+function toast(msg, ms = 2600) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.remove("hidden");
+  clearTimeout(toastTimer);
+  if (ms) toastTimer = setTimeout(() => t.classList.add("hidden"), ms);
+}
+function setBusy(on, msg) {
+  document.body.classList.toggle("busy", on);
+  if (msg) toast(msg, 0);
+  else if (!on) $("toast").classList.add("hidden");
+}
+
+/* ---------- Modal xác nhận ---------- */
+function confirmBox(msg, okText = "Xác nhận") {
+  return new Promise((resolve) => {
+    $("modal-msg").textContent = msg;
+    $("modal-ok").textContent = okText;
+    $("modal").classList.remove("hidden");
+    const done = (v) => {
+      $("modal").classList.add("hidden");
+      $("modal-ok").onclick = null;
+      $("modal-cancel").onclick = null;
+      resolve(v);
+    };
+    $("modal-ok").onclick = () => done(true);
+    $("modal-cancel").onclick = () => done(false);
+  });
+}
+
+/* ---------- IndexedDB ---------- */
+let dbPromise = null;
+function openDB() {
+  if (!dbPromise) {
+    dbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: "id" });
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  return dbPromise;
+}
+async function tx(mode, fn) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const t = db.transaction(STORE, mode);
+    const req = fn(t.objectStore(STORE));
+    t.oncomplete = () => resolve(req ? req.result : undefined);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
+  });
+}
+const dbPut = (rec) => tx("readwrite", (st) => st.put(rec));
+const dbDel = (id) => tx("readwrite", (st) => st.delete(id));
+const dbGet = (id) => tx("readonly", (st) => st.get(id));
+const dbAll = () => tx("readonly", (st) => st.getAll());
+
+/* ---------- Nén ảnh (theo cài đặt) ---------- */
+async function compressImage(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = url;
+    });
+    const scale = Math.min(1, S.maxWidth / img.naturalWidth);
+    const w = Math.round(img.naturalWidth * scale);
+    const h = Math.round(img.naturalHeight * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    return await new Promise((resolve, reject) =>
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/jpeg", S.quality / 100)
+    );
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+function showPreview() {
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl = currentBlob ? URL.createObjectURL(currentBlob) : null;
+  $("preview").src = previewUrl || "";
+  $("preview-wrap").classList.toggle("hidden", !previewUrl);
+}
+
+/* ---------- Supabase ---------- */
+async function uploadImage(blob, id) {
+  const d = new Date();
+  const path = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${id}.jpg`;
+  const res = await fetch(`${S.url}/storage/v1/object/${S.bucket}/${path}`, {
+    method: "POST",
+    headers: sbHeaders({ "Content-Type": "image/jpeg", "x-upsert": "true" }),
+    body: blob
+  });
+  if (!res.ok) throw new Error("upload " + res.status);
+  return path;
+}
+async function insertRow(row) {
+  const res = await fetch(`${S.url}/rest/v1/${S.table}?on_conflict=id`, {
+    method: "POST",
+    headers: sbHeaders({ "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" }),
+    body: JSON.stringify(row)
+  });
+  if (!res.ok) throw new Error("insert " + res.status);
+}
+function buildRow(rec) {
+  const { blob, trang_thai, ...data } = rec;
+  return {
+    id: data.id,
+    bien_so: data.bien_so,
+    ten_ncc: data.ten_ncc,
+    hang_hoa: data.hang_hoa,
+    ghi_chu: data.ghi_chu,
+    tl_tong: data.tl_tong,
+    tl_bi: data.tl_bi,
+    tl_tinh: data.tl_tinh,
+    thoi_gian_tong: data.thoi_gian_tong,
+    thoi_gian_bi: data.thoi_gian_bi,
+    anh_path: data.anh_path || null,
+    du_lieu: data,
+    created_at: data.cap_nhat
+  };
+}
+
+/* ---------- Form ---------- */
+function collect() {
+  const tong = parse($("tl_tong").value);
+  const bi = parse($("tl_bi").value);
+  if (!currentId) currentId = newId();
+  if (tong != null && tTong == null) tTong = new Date().toISOString();
+  if (bi != null && tBi == null) tBi = new Date().toISOString();
+  return {
+    id: currentId,
+    bien_so: $("bien_so").value.trim().toUpperCase(),
+    ten_ncc: $("ten_ncc").value.trim(),
+    hang_hoa: $("hang_hoa").value.trim(),
+    ghi_chu: $("ghi_chu").value.trim(),
+    tl_tong: tong,
+    tl_bi: bi,
+    tl_tinh: tong != null && bi != null ? round2(tong - bi) : null,
+    thoi_gian_tong: tTong,
+    thoi_gian_bi: tBi,
+    cap_nhat: new Date().toISOString(),
+    anh_path: null,
+    trang_thai: "dang_can",
+    blob: currentBlob || null
+  };
+}
+function validate(rec) {
+  if (!rec.bien_so) return "Nhập biển số xe";
+  if (rec.tl_tong == null || rec.tl_tong <= 0) return "Thiếu TL Tổng";
+  if (rec.tl_bi == null) return "Thiếu TL Bì (cân lần 2)";
+  if (rec.tl_tong <= rec.tl_bi) return "TL Tổng phải lớn hơn TL Bì";
+  return null;
+}
+function recalc() {
+  const tong = parse($("tl_tong").value);
+  const bi = parse($("tl_bi").value);
+  const net = $("tl_tinh");
+  const st = $("status");
+  if (tong != null && bi != null) {
+    const v = round2(tong - bi);
+    net.textContent = fmt(v);
+    net.classList.toggle("bad", v <= 0);
+    st.textContent = v <= 0 ? "Kiểm tra lại: TL Bì ≥ TL Tổng" : "Đã đủ 2 lần cân";
+  } else if (tong != null) {
+    net.textContent = "—";
+    st.textContent = "Đã cân lần 1 (xe đầy) — chờ cân bì";
+  } else {
+    net.textContent = "—";
+    st.textContent = "Chưa có khối lượng";
+  }
+}
+function onWeightInput() {
+  if (parse($("tl_tong").value) != null && tTong == null) tTong = new Date().toISOString();
+  if (parse($("tl_bi").value) != null && tBi == null) tBi = new Date().toISOString();
+  recalc();
+}
+function resetForm() {
+  currentId = null;
+  currentBlob = null;
+  tTong = null;
+  tBi = null;
+  FIELDS.forEach((f) => ($(f).value = ""));
+  $("cam").value = "";
+  showPreview();
+  recalc();
+}
+const isDirty = () => FIELDS.some((f) => $(f).value.trim() !== "") || !!currentBlob;
+
+/* ---------- Lưu tạm / Chốt phiếu ---------- */
+async function saveTemp() {
+  const rec = collect();
+  if (!rec.bien_so) { toast("Nhập biển số xe trước"); $("bien_so").focus(); return; }
+  if (rec.tl_tong == null) { toast("Chưa có TL Tổng"); $("tl_tong").focus(); return; }
+  await dbPut(rec);
+  currentId = rec.id;
+  await renderPending();
+  toast(`Đã lưu tạm xe ${rec.bien_so}`);
+}
+async function saveFinal() {
+  if (!isConfigured()) { toast("Chưa cấu hình Supabase — vào Cài đặt để nhập"); return; }
+  const rec = collect();
+  const err = validate(rec);
+  if (err) { toast(err); return; }
+
+  setBusy(true, "Đang lưu phiếu...");
+  try {
+    rec.trang_thai = "hoan_tat";
+    if (currentBlob) rec.anh_path = await uploadImage(currentBlob, rec.id);
+    await insertRow(buildRow(rec));
+    await dbDel(rec.id).catch(() => {});
+    toast(`Đã chốt phiếu ${rec.bien_so}`);
+    resetForm();
+  } catch (e) {
+    rec.trang_thai = "cho_dong_bo";
+    await dbPut(rec);
+    currentId = rec.id;
+    toast("Chưa gửi được — đã lưu vào danh sách chờ đồng bộ", 3500);
+  } finally {
+    setBusy(false);
+    await renderPending();
+  }
+}
+async function syncPending() {
+  if (!navigator.onLine || !isConfigured() || !S.autoSync) return;
+  const list = (await dbAll()).filter((r) => r.trang_thai === "cho_dong_bo");
+  for (const rec of list) {
+    try {
+      if (rec.blob && !rec.anh_path) {
+        rec.anh_path = await uploadImage(rec.blob, rec.id);
+        await dbPut(rec);
+      }
+      rec.trang_thai = "hoan_tat";
+      await insertRow(buildRow(rec));
+      await dbDel(rec.id);
+    } catch (e) { /* giữ lại, thử lại lần sau */ }
+  }
+  await renderPending();
+}
+
+/* ---------- In phiếu ---------- */
+function receiptHTML(r) {
+  return `
+  <div class="rc">
+    <h2>${esc(S.station)}</h2>
+    <p class="st">PHIẾU CÂN — In lúc ${esc(new Date().toLocaleString("vi-VN"))}</p>
+    <table>
+      <tr><td>Biển số xe</td><td><b>${esc(r.bien_so)}</b></td></tr>
+      <tr><td>Nhà cung cấp</td><td>${esc(r.ten_ncc)}</td></tr>
+      <tr><td>Hàng hóa</td><td>${esc(r.hang_hoa)}</td></tr>
+      <tr><td>TL Tổng (kg)</td><td>${fmt(r.tl_tong)}</td></tr>
+      <tr><td>TL Bì (kg)</td><td>${fmt(r.tl_bi)}</td></tr>
+      <tr class="net"><td>KL Tịnh (kg)</td><td>${fmt(r.tl_tinh)}</td></tr>
+    </table>
+    <p>Ghi chú: ${esc(r.ghi_chu)}</p>
+    <div class="sign"><span>Người cân</span><span>Người giao hàng</span></div>
+  </div>`;
+}
+function onPrint() {
+  const rec = collect();
+  if (!rec.bien_so && rec.tl_tong == null) { toast("Chưa có dữ liệu để in"); return; }
+  $("print-area").innerHTML = receiptHTML(rec);
+  window.print();
+}
+async function onReset() {
+  if (isDirty()) {
+    const ok = await confirmBox("Xóa phiếu đang nhập để đón xe tiếp theo?", "Xóa");
+    if (!ok) return;
+  }
+  resetForm();
+  toast("Sẵn sàng cho xe tiếp theo");
+}
+
+/* ---------- Danh sách chờ ---------- */
+async function renderPending() {
+  const list = (await dbAll()).sort((a, b) => (b.cap_nhat || "").localeCompare(a.cap_nhat || ""));
+  $("pending-count").textContent = list.length;
+  const box = $("pending-list");
+  box.innerHTML = "";
+  if (!list.length) {
+    box.innerHTML = '<div class="empty">Chưa có xe nào đang chờ</div>';
+    return;
+  }
+  for (const r of list) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip" + (r.trang_thai === "cho_dong_bo" ? " sync" : "");
+    const stateText = r.trang_thai === "cho_dong_bo" ? "Chờ đồng bộ" : (r.tl_bi == null ? "Cân lần 1" : "Cân lần 2");
+    chip.innerHTML = `
+      <b>${esc(r.bien_so || "(chưa có biển)")}</b>
+      <span>${r.tl_tong != null ? fmt(r.tl_tong) + " kg" : "—"}</span>
+      <em>${stateText}</em>
+      <i class="x" title="Xóa khỏi danh sách">×</i>`;
+    chip.addEventListener("click", async (e) => {
+      if (e.target.closest(".x")) {
+        e.stopPropagation();
+        const ok = await confirmBox(`Xóa xe ${r.bien_so || ""} khỏi danh sách chờ?`, "Xóa");
+        if (!ok) return;
+        await dbDel(r.id);
+        if (currentId === r.id) resetForm();
+        await renderPending();
+        return;
+      }
+      loadRecord(r.id);
+    });
+    box.appendChild(chip);
+  }
+}
+async function loadRecord(id) {
+  const r = await dbGet(id);
+  if (!r) return;
+  currentId = r.id;
+  $("bien_so").value = r.bien_so || "";
+  $("ten_ncc").value = r.ten_ncc || "";
+  $("hang_hoa").value = r.hang_hoa || "";
+  $("ghi_chu").value = r.ghi_chu || "";
+  $("tl_tong").value = r.tl_tong ?? "";
+  $("tl_bi").value = r.tl_bi ?? "";
+  tTong = r.thoi_gian_tong || null;
+  tBi = r.thoi_gian_bi || null;
+  currentBlob = r.blob || null;
+  showPreview();
+  recalc();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  toast(`Đã nạp xe ${r.bien_so || ""} — cân tiếp lần 2`);
+}
+
+/* ---------- Cài đặt ---------- */
+function showView(name) {
+  $("view-scale").classList.toggle("hidden", name !== "scale");
+  $("view-settings").classList.toggle("hidden", name !== "settings");
+  window.scrollTo(0, 0);
+  if (name === "settings") populateSettingsForm();
+}
+function updateStationLabel() {
+  $("station-label").textContent = S.station;
+  document.title = `${S.station} — Phiếu cân`;
+}
+function refreshRangeLabels() {
+  $("v_width").textContent = `${$("s_width").value} px`;
+  $("v_quality").textContent = `${$("s_quality").value}%`;
+}
+function populateSettingsForm() {
+  $("s_station").value = S.station;
+  $("s_url").value = S.url;
+  $("s_key").value = S.key;
+  $("s_bucket").value = S.bucket;
+  $("s_table").value = S.table;
+  $("s_width").value = S.maxWidth;
+  $("s_quality").value = S.quality;
+  $("s_autosync").checked = S.autoSync;
+  refreshRangeLabels();
+  setTestResult("", "");
+}
+function readSettingsForm() {
+  return {
+    station: $("s_station").value.trim() || DEFAULTS.station,
+    url: $("s_url").value.trim().replace(/\/+$/, ""),
+    key: $("s_key").value.trim(),
+    bucket: $("s_bucket").value.trim() || DEFAULTS.bucket,
+    table: $("s_table").value.trim() || DEFAULTS.table,
+    maxWidth: clamp(parseInt($("s_width").value, 10) || DEFAULTS.maxWidth, 480, 2048),
+    quality: clamp(parseInt($("s_quality").value, 10) || DEFAULTS.quality, 30, 95),
+    autoSync: $("s_autosync").checked
+  };
+}
+function validateSettings(o) {
+  if (o.url && !/^https:\/\/.+/.test(o.url)) return "URL phải bắt đầu bằng https://";
+  if (!/^[a-z0-9_-]+$/i.test(o.bucket)) return "Tên bucket chỉ gồm chữ, số, - và _";
+  if (!/^[a-z0-9_-]+$/i.test(o.table)) return "Tên bảng chỉ gồm chữ, số, - và _";
+  return null;
+}
+function setTestResult(msg, cls) {
+  const el = $("test-result");
+  el.textContent = msg;
+  el.className = cls || "";
+}
+async function testConnection() {
+  const o = readSettingsForm();
+  const err = validateSettings(o);
+  if (err) { setTestResult(err, "err"); return; }
+  if (!o.url || !o.key) { setTestResult("Nhập Project URL và Anon key trước", "err"); return; }
+  setTestResult("Đang kiểm tra...", "");
+  const headers = { apikey: o.key, Authorization: `Bearer ${o.key}` };
+  try {
+    const a = await fetch(`${o.url}/rest/v1/${o.table}?select=id&limit=1`, { headers });
+    if (!a.ok) throw new Error(`Bảng "${o.table}" lỗi HTTP ${a.status} (kiểm tra tên bảng và key)`);
+    const b = await fetch(`${o.url}/storage/v1/bucket/${o.bucket}`, { headers });
+    if (!b.ok) throw new Error(`Bucket "${o.bucket}" lỗi HTTP ${b.status}`);
+    setTestResult("✔ Kết nối thành công: bảng và bucket đều truy cập được.", "ok");
+  } catch (e) {
+    setTestResult("✖ " + (e.message === "Failed to fetch" ? "Không kết nối được (kiểm tra URL, mạng hoặc CORS)" : e.message), "err");
+  }
+}
+async function saveSettingsFromForm() {
+  const o = readSettingsForm();
+  const err = validateSettings(o);
+  if (err) { toast(err); return; }
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(o));
+  S = o;
+  updateStationLabel();
+  toast("Đã lưu cấu hình");
+  showView("scale");
+  syncPending();
+}
+async function restoreDefaults() {
+  const ok = await confirmBox("Đưa cài đặt về mặc định? (Chưa áp dụng cho tới khi nhấn Lưu)", "Khôi phục");
+  if (!ok) return;
+  const d = { ...DEFAULTS };
+  $("s_station").value = d.station;
+  $("s_url").value = d.url;
+  $("s_key").value = d.key;
+  $("s_bucket").value = d.bucket;
+  $("s_table").value = d.table;
+  $("s_width").value = d.maxWidth;
+  $("s_quality").value = d.quality;
+  $("s_autosync").checked = d.autoSync;
+  refreshRangeLabels();
+}
+
+/* ---------- Trạng thái mạng ---------- */
+function updateNet() {
+  const on = navigator.onLine;
+  document.querySelectorAll(".netfield").forEach((el) => {
+    el.textContent = on ? "● ONLINE" : "● OFFLINE";
+    el.className = "netstat netfield " + (on ? "on" : "off");
+  });
+}
+
+/* ---------- Sự kiện ---------- */
+$("tl_tong").addEventListener("input", onWeightInput);
+$("tl_bi").addEventListener("input", onWeightInput);
+
+$("cam").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  setBusy(true, "Đang nén ảnh...");
+  try {
+    currentBlob = await compressImage(file);
+    showPreview();
+    toast(`Đã chọn ảnh (${Math.round(currentBlob.size / 1024)} KB)`);
+  } catch (err) {
+    toast("Không đọc được ảnh, thử lại");
+  } finally {
+    setBusy(false);
+    e.target.value = "";
+  }
+});
+$("rm-photo").addEventListener("click", () => { currentBlob = null; showPreview(); });
+
+$("btn-temp").addEventListener("click", saveTemp);
+$("btn-save").addEventListener("click", saveFinal);
+$("btn-print").addEventListener("click", onPrint);
+$("btn-reset").addEventListener("click", onReset);
+
+$("btn-open-settings").addEventListener("click", () => showView("settings"));
+$("btn-back").addEventListener("click", () => showView("scale"));
+$("btn-save-settings").addEventListener("click", saveSettingsFromForm);
+$("btn-test").addEventListener("click", testConnection);
+$("btn-defaults").addEventListener("click", restoreDefaults);
+$("btn-eye").addEventListener("click", () => {
+  const input = $("s_key");
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  $("btn-eye").textContent = show ? "Ẩn" : "Hiện";
+});
+$("s_width").addEventListener("input", refreshRangeLabels);
+$("s_quality").addEventListener("input", refreshRangeLabels);
+
+window.addEventListener("online", () => { updateNet(); syncPending(); });
+window.addEventListener("offline", updateNet);
+
+/* ---------- Khởi động ---------- */
+updateStationLabel();
+updateNet();
+recalc();
+renderPending().catch((e) => console.error(e));
+syncPending().catch((e) => console.error(e));
+/* Mở thẳng màn hình cài đặt khi link kết thúc bằng #cai-dat (dùng cho xem thử) */
+function routeFromHash() { showView(location.hash === "#cai-dat" ? "settings" : "scale"); }
+window.addEventListener("hashchange", routeFromHash);
+if (location.hash === "#cai-dat") routeFromHash();
+if (!isConfigured()) toast("Chưa có cấu hình Supabase — mở ⚙ Cài đặt để nhập", 4000);
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", async () => {
+    try {
+      const registration = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+      console.info("Service Worker registered:", registration.scope);
+    } catch (error) {
+      console.error("Service Worker registration failed:", error);
+    }
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+.vscode/
+.idea/
+node_modules/
+dist/
+build/
+*.bak
+github.backup/
+task.md
