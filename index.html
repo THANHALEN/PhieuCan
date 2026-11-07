@@ -246,6 +246,8 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 
   <div class="layout">
     <aside class="pending" aria-label="Xe đang chờ cân">
+      <button class="btn full" id="btn-mua" type="button">Lấy từ phiếu mua hàng</button>
+      <div class="pending-list hidden" id="mua-list"></div>
       <div class="pending-head">Xe đang chờ cân lần 2 <span class="badge" id="pending-count">0</span></div>
       <div class="pending-list" id="pending-list"></div>
     </aside>
@@ -273,6 +275,8 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
             <input class="nm-input num" id="tl_bi" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
           </div>
         </div>
+        <label class="lbl" for="tap_chat">Tạp chất (%)</label>
+        <input class="nm-input num" id="tap_chat" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
         <div class="lcd">
           <span>KHỐI LƯỢNG TỊNH (kg)</span>
           <strong id="tl_tinh">—</strong>
@@ -418,8 +422,13 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
    CẤU HÌNH — người dùng chỉnh trong màn hình Cài đặt,
    được lưu trong trình duyệt (localStorage)
    ========================================================= */
-const APP_VERSION = "1.1.2"; // đổi cùng CACHE_NAME trong sw.js và CHANGELOG.md
+const APP_VERSION = "1.2.0"; // đổi cùng CACHE_NAME trong sw.js và CHANGELOG.md
 const CHANGELOG = [
+  { v: "1.2.0", d: "2026-11-07", items: [
+    "Thêm ô Tạp chất (%): KL tịnh = (Tổng − Bì) × (1 − tạp chất%)",
+    "Nút Lấy từ phiếu mua hàng: nạp biển số, nhà cung cấp, hàng hóa, ghi chú từ bước 1",
+    "Chốt phiếu cân thì đánh dấu phiếu mua hàng là đã cân"
+  ] },
   { v: "1.1.2", d: "2026-11-07", items: [
     "Sửa lỗi Service Worker bị huỷ khi cache lỗi (không cài/offline được)",
     "Tự cập nhật: so version với host, lệch thì tải bản mới và tự tải lại"
@@ -451,7 +460,8 @@ const STORE = "pending";
 
 /* ---------- Tiện ích ---------- */
 const $ = (id) => document.getElementById(id);
-const FIELDS = ["bien_so", "ten_ncc", "hang_hoa", "tl_tong", "tl_bi", "ghi_chu"];
+const FIELDS = ["bien_so", "ten_ncc", "hang_hoa", "tl_tong", "tl_bi", "tap_chat", "ghi_chu"];
+const TABLE_MUA = "phieu_mua_hang"; // bảng bước 1 (app Phiếu Mua Hàng), dùng chung database
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const parse = (v) => { const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? null : n; };
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -470,6 +480,7 @@ const sbHeaders = (extra = {}) => ({ apikey: S.key, Authorization: `Bearer ${S.k
 
 /* ---------- Trạng thái ---------- */
 let currentId = null;
+let currentPhieuNo = null; // mã phiếu mua hàng (bước 1) đang gắn với phiếu cân này
 let currentBlob = null;
 let previewUrl = null;
 let tTong = null;
@@ -597,6 +608,8 @@ function buildRow(rec) {
     tl_tong: data.tl_tong,
     tl_bi: data.tl_bi,
     tl_tinh: data.tl_tinh,
+    tap_chat: data.tap_chat,
+    phieu_no: data.phieu_no || null,
     thoi_gian_tong: data.thoi_gian_tong,
     thoi_gian_bi: data.thoi_gian_bi,
     anh_path: data.anh_path || null,
@@ -606,9 +619,12 @@ function buildRow(rec) {
 }
 
 /* ---------- Form ---------- */
+// KL tịnh = (Tổng − Bì) × (1 − tạp chất%/100)
+const netWeight = (tong, bi, tc) => round2((tong - bi) * (1 - (tc || 0) / 100));
 function collect() {
   const tong = parse($("tl_tong").value);
   const bi = parse($("tl_bi").value);
+  const tc = parse($("tap_chat").value);
   if (!currentId) currentId = newId();
   if (tong != null && tTong == null) tTong = new Date().toISOString();
   if (bi != null && tBi == null) tBi = new Date().toISOString();
@@ -620,7 +636,9 @@ function collect() {
     ghi_chu: $("ghi_chu").value.trim(),
     tl_tong: tong,
     tl_bi: bi,
-    tl_tinh: tong != null && bi != null ? round2(tong - bi) : null,
+    tap_chat: tc,
+    phieu_no: currentPhieuNo,
+    tl_tinh: tong != null && bi != null ? netWeight(tong, bi, tc) : null,
     thoi_gian_tong: tTong,
     thoi_gian_bi: tBi,
     cap_nhat: new Date().toISOString(),
@@ -634,15 +652,17 @@ function validate(rec) {
   if (rec.tl_tong == null || rec.tl_tong <= 0) return "Thiếu TL Tổng";
   if (rec.tl_bi == null) return "Thiếu TL Bì (cân lần 2)";
   if (rec.tl_tong <= rec.tl_bi) return "TL Tổng phải lớn hơn TL Bì";
+  if (rec.tap_chat != null && (rec.tap_chat < 0 || rec.tap_chat >= 100)) return "Tạp chất phải từ 0 đến dưới 100 %";
   return null;
 }
 function recalc() {
   const tong = parse($("tl_tong").value);
   const bi = parse($("tl_bi").value);
+  const tc = parse($("tap_chat").value);
   const net = $("tl_tinh");
   const st = $("status");
   if (tong != null && bi != null) {
-    const v = round2(tong - bi);
+    const v = netWeight(tong, bi, tc);
     net.textContent = fmt(v);
     net.classList.toggle("bad", v <= 0);
     st.textContent = v <= 0 ? "Kiểm tra lại: TL Bì ≥ TL Tổng" : "Đã đủ 2 lần cân";
@@ -661,6 +681,7 @@ function onWeightInput() {
 }
 function resetForm() {
   currentId = null;
+  currentPhieuNo = null;
   currentBlob = null;
   tTong = null;
   tBi = null;
@@ -692,6 +713,7 @@ async function saveFinal() {
     rec.trang_thai = "hoan_tat";
     if (currentBlob) rec.anh_path = await uploadImage(currentBlob, rec.id);
     await insertRow(buildRow(rec));
+    await markMuaDone(rec.phieu_no);
     await dbDel(rec.id).catch(() => {});
     toast(`Đã chốt phiếu ${rec.bien_so}`);
     resetForm();
@@ -716,6 +738,7 @@ async function syncPending() {
       }
       rec.trang_thai = "hoan_tat";
       await insertRow(buildRow(rec));
+      await markMuaDone(rec.phieu_no);
       await dbDel(rec.id);
     } catch (e) { /* giữ lại, thử lại lần sau */ }
   }
@@ -734,6 +757,7 @@ function receiptHTML(r) {
       <tr><td>Hàng hóa</td><td>${esc(r.hang_hoa)}</td></tr>
       <tr><td>TL Tổng (kg)</td><td>${fmt(r.tl_tong)}</td></tr>
       <tr><td>TL Bì (kg)</td><td>${fmt(r.tl_bi)}</td></tr>
+      <tr><td>Tạp chất (%)</td><td>${fmt(r.tap_chat)}</td></tr>
       <tr class="net"><td>KL Tịnh (kg)</td><td>${fmt(r.tl_tinh)}</td></tr>
     </table>
     <p>Ghi chú: ${esc(r.ghi_chu)}</p>
@@ -800,6 +824,8 @@ async function loadRecord(id) {
   $("ghi_chu").value = r.ghi_chu || "";
   $("tl_tong").value = r.tl_tong ?? "";
   $("tl_bi").value = r.tl_bi ?? "";
+  $("tap_chat").value = r.tap_chat ?? "";
+  currentPhieuNo = r.phieu_no || null;
   tTong = r.thoi_gian_tong || null;
   tBi = r.thoi_gian_bi || null;
   currentBlob = r.blob || null;
@@ -810,6 +836,60 @@ async function loadRecord(id) {
 }
 
 /* ---------- Cài đặt ---------- */
+/* ---------- Liên kết phiếu mua hàng (bước 1) ---------- */
+async function markMuaDone(phieuNo) {
+  if (!phieuNo) return;
+  const res = await fetch(`${S.url}/rest/v1/${TABLE_MUA}?phieu_no=eq.${encodeURIComponent(phieuNo)}`, {
+    method: "PATCH",
+    headers: sbHeaders({ "Content-Type": "application/json", Prefer: "return=minimal" }),
+    body: JSON.stringify({ trang_thai: "da_can" })
+  });
+  if (!res.ok) throw new Error("mark " + res.status);
+}
+const uniq = (arr) => [...new Set(arr.map((s) => String(s || "").trim()).filter(Boolean))];
+async function pickMua(p) {
+  if (isDirty()) {
+    const ok = await confirmBox("Thay phiếu đang nhập bằng phiếu mua hàng đã chọn?", "Thay");
+    if (!ok) return;
+  }
+  resetForm();
+  const items = Array.isArray(p.items) ? p.items : [];
+  $("bien_so").value = p.bien_so || "";
+  $("ten_ncc").value = uniq(items.map((i) => i.seller)).join(", ");
+  $("hang_hoa").value = uniq(items.map((i) => i.hang)).join(", ");
+  $("ghi_chu").value = p.ghi_chu || "";
+  currentPhieuNo = p.phieu_no;
+  $("mua-list").classList.add("hidden");
+  recalc();
+  toast(`Đã nạp phiếu mua ${p.phieu_no} — cân lần 1`);
+}
+async function toggleMuaList() {
+  const box = $("mua-list");
+  if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
+  if (!isConfigured()) { toast("Chưa cấu hình Supabase — vào Cài đặt để nhập"); return; }
+  box.classList.remove("hidden");
+  box.innerHTML = '<div class="empty">Đang tải...</div>';
+  try {
+    const q = `${S.url}/rest/v1/${TABLE_MUA}?select=phieu_no,bien_so,ghi_chu,items,created_at&trang_thai=eq.cho_can&order=created_at.desc&limit=50`;
+    const res = await fetch(q, { headers: sbHeaders() });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const list = await res.json();
+    box.innerHTML = "";
+    if (!list.length) { box.innerHTML = '<div class="empty">Không có phiếu mua nào đang chờ cân</div>'; return; }
+    for (const p of list) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip";
+      chip.innerHTML = `<b>${esc(p.bien_so || "(chưa có biển)")}</b><span>${esc(p.phieu_no)}</span>`;
+      chip.addEventListener("click", () => pickMua(p));
+      box.appendChild(chip);
+    }
+  } catch (e) {
+    console.error(e);
+    box.innerHTML = `<div class="empty">Không tải được phiếu mua hàng (${esc(e.message)})</div>`;
+  }
+}
+
 function showView(name) {
   $("view-scale").classList.toggle("hidden", name !== "scale");
   $("view-settings").classList.toggle("hidden", name !== "settings");
@@ -931,6 +1011,8 @@ function updateNet() {
 /* ---------- Sự kiện ---------- */
 $("tl_tong").addEventListener("input", onWeightInput);
 $("tl_bi").addEventListener("input", onWeightInput);
+$("tap_chat").addEventListener("input", recalc);
+$("btn-mua").addEventListener("click", toggleMuaList);
 
 $("cam").addEventListener("change", async (e) => {
   const file = e.target.files[0];
