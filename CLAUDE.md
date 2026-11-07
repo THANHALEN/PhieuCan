@@ -32,4 +32,6 @@ Vanilla Frontend thuần (HTML5, CSS3, JavaScript ES6+). Không sử dụng fram
 
 ## Git & Deploy
 - Pages deploy từ nhánh `main` (Deploy from a branch). Không thêm workflow Actions deploy song song (hai luồng cùng deploy sẽ tranh nhau và lỗi).
-- Phiên Claude không có thông tin đăng nhập GitHub: Claude commit, người dùng push bằng `! git push`.
+- Claude tự push được bằng Git Credential Manager đã đăng nhập sẵn (tài khoản THANHALEN). Trong phiên Claude, `git push` trần sẽ lỗi `could not read Username` vì không tìm thấy helper `manager`; phải chỉ thẳng tới helper (PowerShell):
+  `$env:GIT_TERMINAL_PROMPT='0'; git -c "credential.helper=" -c "credential.helper=!'C:/Program Files/Git/mingw64/bin/git-credential-manager.exe'" push`
+- Không đọc/trích xuất token; không dùng `--force` khi push trừ khi người dùng yêu cầu rõ.
