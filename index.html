@@ -418,8 +418,11 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
    CẤU HÌNH — người dùng chỉnh trong màn hình Cài đặt,
    được lưu trong trình duyệt (localStorage)
    ========================================================= */
-const APP_VERSION = "1.1.0"; // đổi cùng CACHE_NAME trong sw.js và CHANGELOG.md
+const APP_VERSION = "1.1.1"; // đổi cùng CACHE_NAME trong sw.js và CHANGELOG.md
 const CHANGELOG = [
+  { v: "1.1.1", d: "2026-11-07", items: [
+    "Manifest: id, start_url, scope dùng URL tuyệt đối để cài PWA ổn định"
+  ] },
   { v: "1.1.0", d: "2026-11-02", items: [
     "Thêm số phiên bản và nhật ký thay đổi",
     "Bỏ mục cài đặt Ảnh chụp (dùng giá trị mặc định 1280 px / 70%)",

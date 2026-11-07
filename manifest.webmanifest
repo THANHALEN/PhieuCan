@@ -3,8 +3,8 @@
   "short_name": "Phiếu cân",
   "description": "Phiếu cân điện tử cho trạm thu mua",
   "lang": "vi",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "https://thanhalen.github.io/PhieuCan/",
+  "scope": "https://thanhalen.github.io/PhieuCan/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#e9ecf1",
@@ -23,5 +23,5 @@
       "purpose": "any"
     }
   ],
-  "id": "./"
+  "id": "https://thanhalen.github.io/PhieuCan/"
 }
