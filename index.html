@@ -418,8 +418,12 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
    CẤU HÌNH — người dùng chỉnh trong màn hình Cài đặt,
    được lưu trong trình duyệt (localStorage)
    ========================================================= */
-const APP_VERSION = "1.1.1"; // đổi cùng CACHE_NAME trong sw.js và CHANGELOG.md
+const APP_VERSION = "1.1.2"; // đổi cùng CACHE_NAME trong sw.js và CHANGELOG.md
 const CHANGELOG = [
+  { v: "1.1.2", d: "2026-11-07", items: [
+    "Sửa lỗi Service Worker bị huỷ khi cache lỗi (không cài/offline được)",
+    "Tự cập nhật: so version với host, lệch thì tải bản mới và tự tải lại"
+  ] },
   { v: "1.1.1", d: "2026-11-07", items: [
     "Manifest: id, start_url, scope dùng URL tuyệt đối để cài PWA ổn định"
   ] },
@@ -982,10 +986,34 @@ if (!isConfigured()) toast("Chưa có cấu hình Supabase — mở ⚙ Cài đ�
 </script>
 <script>
 if ("serviceWorker" in navigator) {
+  // Có SW mới thay thế SW cũ -> tải lại 1 lần để áp dụng (bỏ qua lần cài đầu tiên)
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || reloaded) return;
+    reloaded = true;
+    location.reload();
+  });
   window.addEventListener("load", async () => {
     try {
-      const registration = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+      const registration = await navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" });
       console.info("Service Worker registered:", registration.scope);
+      // Tự cập nhật: so APP_VERSION với version trên host (CACHE_NAME trong sw.js)
+      const checkUpdate = async () => {
+        if (!navigator.onLine) return;
+        try {
+          const txt = await (await fetch("./sw.js", { cache: "no-store" })).text();
+          const m = txt.match(/phieu-can-v([\d.]+)/);
+          if (m && m[1] !== APP_VERSION) {
+            await registration.update();
+            if (registration.waiting) registration.waiting.postMessage("SKIP_WAITING");
+          }
+        } catch (e) { /* offline: bỏ qua */ }
+      };
+      checkUpdate();
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
+      window.addEventListener("online", checkUpdate);
+      setInterval(checkUpdate, 10 * 60 * 1000);
     } catch (error) {
       console.error("Service Worker registration failed:", error);
     }

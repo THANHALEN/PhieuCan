@@ -3,6 +3,10 @@
 Định dạng theo [Semantic Versioning](https://semver.org/lang/vi/): MAJOR.MINOR.PATCH
 (sửa lỗi nhỏ → PATCH, thêm tính năng → MINOR, thay đổi phá vỡ dữ liệu/định dạng → MAJOR).
 
+## [1.1.2] - 2026-11-07
+- Sửa lỗi Service Worker bị huỷ khi cache lỗi (không cài/offline được)
+- Tự cập nhật: so version với host, lệch thì tải bản mới và tự tải lại
+
 ## [1.1.1] - 2026-11-07
 - Manifest: id, start_url, scope dùng URL tuyệt đối để cài PWA ổn định
 
